@@ -58,7 +58,8 @@ void HAL37xy::sendCommand(int length) {
 	}
 	
 	//Set the pin high when we're done
-	digitalWrite(outputPin,HIGH); delayMicroseconds(PROGSPEED);
+	outputState = 1;
+	digitalWrite(outputPin,HIGH); delayMicroseconds(HALFPROGSPEED/2);
 }
 
 void HAL37xy::sendSync() {
@@ -91,7 +92,10 @@ void HAL37xy::writeLogicalZero() {
 byte HAL37xy::getError() { return errorCode; }
 
 byte HAL37xy::readResponse() {
-	pinMode(outputPin,INPUT);	//Its time to read what HAL37xy has to say!  Set our pin to input mode
+	pinMode(outputPin,INPUT_PULLUP);	//Its time to read what HAL37xy has to say!  Set our pin to input mode
+	
+	//Give it a wee bit of time a sec to pull up the voltage before we start reading
+	delayMicroseconds(HALFPROGSPEED/2);
 	
 	//HAL37xy always starts by sending a dummy bit (always 0)
 	byte dummyBit = readBit();	
@@ -119,7 +123,7 @@ byte HAL37xy::readResponse() {
 		//Add this bit to our response variable
 		responseCRC |= buffer[19-i] << i;
 	}
-
+	
 	//Calculate the CRC for the response and make sure it matches what we received
 	//If not, return Invalid Checksum error (ErrorCode: 2)
 	if (calculateCRC() != responseCRC) { return 2; }
@@ -168,32 +172,21 @@ bool HAL37xy::waitUntil(bool high) {
 
 byte HAL37xy::calculateCRC() {
 	//According to the datasheet, the CRC polynomial is (x^4 + x + 1)
-	//This translates to 1x^4 + 0x^3 + 0x^2 + 1x + 1  =  10011
 	//See wikipedia for how to calculate CRC
 	//https://en.wikipedia.org/wiki/Cyclic_redundancy_check#Polynomial_representations_of_cyclic_redundancy_checks
-	byte polynomial[5] = {1,0,0,1,1};
+	//I will be following the crc calculation exactly as they have it in the programming guide
+	//Unfortunately, I have not taken the time to learn exactly what is happening here
 	
-	//WARNING: This modifies buffer!  I hope you already extracted all the important info you needed
-	//Leave bytes 0-15 as they are
-	//HAL37xy uses a 4-bit CRC, so clear the next 4 bits
-	for (int i = 16; i < 20; i++) { buffer[i] = 0; }
-	
-	//Here's the magic.  If you don't understand. Check the above wikipedia link
-	for (int i = 0; i < 16; i++) {
-		//Skip this step if the bit is 0
-		if (buffer[i] == 0) { continue; }
-		
-		//XOR our polynomial with the next 5 bits of our buffer
-		for (int j = 0; j < 5; j++) {
-			buffer[i+j] ^= polynomial[j];
-		}
+	byte bit_in,bit_out,bit_comp,crc;
+	crc = 0;
+	for (int i = 15; i >= 0; i--) {
+		bit_in = (response >> i) & 0x1;	/*Extract input bit*/
+		bit_out = (crc >> 3) & 0x1;		/*Extract bit b3 of crc*/
+		bit_comp = (bit_out ^ bit_in) & 0x1;
+		crc = (crc << 1) + bit_comp;	/*Calculate interim value of crc*/
+		crc = crc ^ (bit_comp << 1);
 	}
 	
-	//Not too bad.  We did it!  Now just convert those last 4 CRC bits (16-19) to a number
-	byte crc = 0;
-	for (int i = 0; i < 4; i++) {
-		crc |= buffer[19-i] << i;
-	}
-	
+	crc &= 0xf;
 	return crc;
 }
