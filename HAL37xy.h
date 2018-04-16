@@ -7,8 +7,10 @@ class HAL37xy {
 
 	public:
 	HAL37xy(int outputPin);
-	uint16_t readAddress(int address);	//Read from a specific address and return unsigned 16-bit int.  Specific to address in datasheet
-	byte getError();					//Returns an error code.  0=success, 1=response timeout, 2=invalid checksum
+	uint16_t readAddress(int address);				//Read from a specific address and return unsigned 16-bit int.  Specific to address in datasheet
+	bool writeAddress(int address, uint16_t data);	//Write to a specific address.  Returns true on success
+	bool setBaseAddress(uint16_t base);				//Set the base block for reading/writing.  base must be 0,1,2,3
+	byte getError();								//Returns an error code.  0=success, 1=response timeout, 2=invalid checksum
 	
 	//These are all my helper functions.
 	private:
@@ -18,9 +20,10 @@ class HAL37xy {
 	void writeLogicalZero();
 	void writeLogicalOne();
 	byte readResponse();
-	byte calculateCRC();
+	byte calculateCRC(uint32_t data, byte length);
 	byte readBit();
-	bool waitUntil(bool high);
+	bool waitUntil(bool high, uint16_t timeout);
+	bool waitForACK();
 	
 	int outputPin;		//The arduino pin used for communication.  Must be A0-A5 (A6 and A7 are input only)
 	byte buffer[30];	//Buffer for output command and response
