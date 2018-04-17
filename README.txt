@@ -1,3 +1,5 @@
-Add this folder to Documents/Arduino/libraries
+Download this library and extract the folder into:
 
-Open Arduino IDE and select examples->HAL37xy->read
+Documents/Arduino/libraries
+
+See AddresTable.pdf to learn where each data point is stored
