@@ -26,7 +26,7 @@ uint16_t HAL37xy::readAddress(int address) {
 	//Actually send the command that's in our buffer
 	//9 bits for a read command: 3-read, 5-address, 1-parity
 	sendCommand(9);
-	
+
 	//Now read the response we get back, and store any errorcode we get
 	errorCode = readResponse();
 	
@@ -56,6 +56,10 @@ void HAL37xy::sendCommand(int length) {
 		if (buffer[i] == 1) { writeLogicalOne(); }
 		else {writeLogicalZero(); }
 	}
+	
+	//Set the pin high when we're done
+	outputState = 1;
+	digitalWrite(outputPin,HIGH); delayMicroseconds(HALFPROGSPEED/2);
 }
 
 void HAL37xy::sendSync() {
@@ -88,12 +92,12 @@ void HAL37xy::writeLogicalZero() {
 byte HAL37xy::getError() { return errorCode; }
 
 byte HAL37xy::readResponse() {
-	pinMode(outputPin,INPUT_PULLUP);	//Its time to read what HAL37xy has to say!  Set our pin to input mode
+	pinMode(outputPin,INPUT);	//Its time to read what HAL37xy has to say!  Set our pin to input mode
 	
 	//Give it a wee bit of time a sec to pull up the voltage before we start reading
 	delayMicroseconds(HALFPROGSPEED/2);
 	
-	if (waitUntil(HIGH,10000L) == false) { return 1; }	//Return timeout
+	if (waitUntil(HIGH,10) == false) { return 1; }	//Return timeout
 	outputState = 1;
 	
 	//HAL37xy always starts by sending a dummy bit (always 0)
@@ -103,12 +107,12 @@ byte HAL37xy::readResponse() {
 	for (int i = 0; i < 20; i++) {
 		buffer[i] = readBit();
 	}
-	
+
 	//Convert our buffer (bytes 0-15) to a 16-bit integer
 	response = 0;
 	for (int i = 0; i < 16; i++) {
 		//Quick check to make sure we didn't get a timeout error (ErrorCode: 1)
-		if (buffer[15-i] == 2) { return 1; }
+		if (buffer[15-i] == 2) { return 3; }
 		
 		//Add this bit to our response variable
 		response |= buffer[15-i] << i;
@@ -134,7 +138,7 @@ byte HAL37xy::readResponse() {
 byte HAL37xy::readBit() {
 	//Wait for the output pin to toggle, signifying the start of this bit
 	//If we timeout, return 2
-	if (waitUntil(!outputState,10000L) == false) { return 2; }
+	if (waitUntil(!outputState,10) == false) { return 2; }
 	
 	//The output pin changed.  Remember what it is now
 	outputState = !outputState;
@@ -159,12 +163,12 @@ byte HAL37xy::readBit() {
 	return logicalData;
 }
 
-bool HAL37xy::waitUntil(bool high, uint16_t timeout) {
+bool HAL37xy::waitUntil(bool high, uint16_t timeoutMS) {
 	//Wait until the signal changes to high/low, but have a timeout of 10ms
-	uint16_t timer = micros();
+	uint16_t timer = millis();
 	while (digitalRead(outputPin)!=high) {
 		//DO NOTHING, just wait
-		if (micros()-timer > timeout) { return false; }	//Oh no!  We timed out!
+		if (millis()-timer > timeoutMS) { return false; }	//Oh no!  We timed out!
 	}
 	return true;
 }
@@ -293,25 +297,25 @@ bool HAL37xy::waitForACK() {
 	*  HIGH | tAPPL (PROGSPEED)
 	*/
 	
-	pinMode(outputPin,INPUT_PULLUP);
+	pinMode(outputPin,INPUT);
 	
 	//NOTE: We will wait up to 2x the timeouts specified in the datasheet.
 	
 	//Wait for the pin to go high to start
-	if (waitUntil(HIGH,10000L) == false) { Serial.println("A"); return false; }
+	if (waitUntil(HIGH,10) == false) { return false; }
 
 	//Wait for the pin to go low (after tAck time units)
-	if (waitUntil(LOW,PROGSPEED*2) == false) { Serial.println("B"); return false; }
+	if (waitUntil(LOW,(PROGSPEED/1000)*2) == false) { return false; }
 
 	//Wait for the pin to go high (after tAck time units)
-	if (waitUntil(HIGH,PROGSPEED*2) == false) { Serial.println("C"); return false; }
+	if (waitUntil(HIGH,(PROGSPEED/1000)*2) == false) { return false; }
 	
 	//Wait for the pin to go low (after tAck + (2*tPROG) time units)
-	if (waitUntil(LOW, 2*(PROGSPEED + 3860)) == false) {Serial.println("D"); return false;}
+	if (waitUntil(LOW, 2*((PROGSPEED/1000) + 4)) == false) { return false;}
 	
 	//Finally goes high again (after tAck time units)
 	//Note, it's normal for this one to potentially time out.  Don't return false
-	waitUntil(HIGH, PROGSPEED * 2);
+	waitUntil(HIGH, (PROGSPEED/1000) * 2);
 	
 	//We did it successfully!
 	return true;
