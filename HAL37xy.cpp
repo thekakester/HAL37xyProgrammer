@@ -166,9 +166,12 @@ byte HAL37xy::readBit() {
 bool HAL37xy::waitUntil(bool high, uint16_t timeoutMS) {
 	//Wait until the signal changes to high/low, but have a timeout of 10ms
 	uint16_t timer = millis();
+	uint16_t timePassed;
 	while (digitalRead(outputPin)!=high) {
 		//DO NOTHING, just wait
-		if (millis()-timer > timeoutMS) { return false; }	//Oh no!  We timed out!
+		timePassed = millis();	//This code had to be split up becasue the if() statement converts things from long to ints, causing overflow and timeouts
+		timePassed -= timer;
+		if (timePassed > timeoutMS) { return false; }	//Oh no!  We timed out!
 	}
 	return true;
 }
